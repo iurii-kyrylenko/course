@@ -1,6 +1,9 @@
 *~
 *#*
 
+# mac
+.DS_Store
+
 # CABAL
 /dist
 /cabal-dev
