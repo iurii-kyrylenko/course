@@ -75,8 +75,11 @@ headOr ::
   a
   -> List a
   -> a
-headOr d Nil = d
-headOr _ (x :. _) = x
+headOr = foldRight const
+-- headOr d xs = foldRight (\x a -> x) d xs
+
+-- headOr d Nil = d
+-- headOr _ (x :. _) = x
 
 -- | The product of the elements of a list.
 --
@@ -90,6 +93,10 @@ product ::
   -> Int
 product =
   foldRight (*) 1
+
+-- better performance
+product' :: List Int -> Int
+product' = foldLeft (*) 1
 
 -- | Sum the elements of the list.
 --
@@ -106,17 +113,38 @@ sum ::
 sum =
   foldRight (+) 0
 
+-- better performance
+sum' :: List Int -> Int
+sum' = foldLeft (+) 0
+
+
 -- | Return the length of the list.
 --
 -- >>> length (1 :. 2 :. 3 :. Nil)
 -- 3
 --
 -- prop> sum (map (const 1) x) == length x
+
+-- better performance
 length ::
   List a
   -> Int
 length Nil = 0
 length (_ :. xs) = 1 + length xs
+
+length' :: List a -> Int
+length' = foldRight (const succ) 0
+-- length' = foldRight (\x -> succ) 0
+-- length' = foldRight (\x -> \a -> succ a) 0
+-- length' = foldRight (\x a -> succ a) 0
+
+length'' :: List a -> Integer
+length'' = foldLeft (const . succ) 0
+-- length'' = foldLeft (\a -> (const . succ) a) 0
+-- length'' = foldLeft (\a -> const (succ a) ) 0
+-- length'' = foldLeft (\a -> \x -> succ a) 0
+-- length'' = foldLeft (\a x -> succ a) 0
+
 
 -- | Map the given function on each element of the list.
 --
@@ -130,8 +158,12 @@ map ::
   (a -> b)
   -> List a
   -> List b
-map _ Nil = Nil
-map f (x :. xs) = f x :. (map f xs)
+map f = foldRight ((:.) . f) Nil
+-- map f = foldRight (\x -> (:.) (f x)) Nil
+-- map f = foldRight (\x ys -> (:.) (f x) ys) Nil
+
+-- map _ Nil = Nil
+-- map f (x :. xs) = f x :. (map f xs)
 
 -- | Return elements satisfying the given predicate.
 --
@@ -147,10 +179,14 @@ filter ::
   (a -> Bool)
   -> List a
   -> List a
-filter _ Nil = Nil
-filter p (x :. xs)
-  | p x = x :. filter p xs
-  | otherwise = filter p xs
+filter p = foldRight (\x -> if p x then (x :.) else id) Nil
+-- filter p = foldRight (\x xs -> if p x then (:.) x xs else id xs) Nil
+-- filter p = foldRight (\x xs -> if p x then x :. xs else xs) Nil
+
+-- filter _ Nil = Nil
+-- filter p (x :. xs)
+--   | p x = x :. filter p xs
+--   | otherwise = filter p xs
 
 -- | Append two lists to a new list.
 --
@@ -243,12 +279,13 @@ flattenAgain = flatMap id
 seqOptional ::
   List (Optional a)
   -> Optional (List a)
-seqOptional =
-  let folder :: Optional a -> Optional (List a) -> Optional (List a)
-      folder Empty _ = Empty
-      folder _ Empty = Empty
-      folder (Full x) (Full xs) = Full $ x :. xs
-  in  foldRight folder (Full Nil)
+seqOptional = foldRight (twiceOptional (:.)) (Full Nil)
+-- seqOptional =
+--   let folder :: Optional a -> Optional (List a) -> Optional (List a)
+--       folder Empty _ = Empty
+--       folder _ Empty = Empty
+--       folder (Full x) (Full xs) = Full $ x :. xs
+--   in  foldRight folder (Full Nil)
 
 -- | Find the first element in the list matching the predicate.
 --
@@ -270,10 +307,14 @@ find ::
   (a -> Bool)
   -> List a
   -> Optional a
-find p Nil = Empty
-find p (x :. xs)
-  | p x       = Full x
-  | otherwise = find p xs
+find p xs = case filter p xs of
+  Nil -> Empty
+  (x :. _) -> Full x
+
+-- find p Nil = Empty
+-- find p (x :. xs)
+--   | p x       = Full x
+--   | otherwise = find p xs
 
 -- | Determine if the length of the given list is greater than 4.
 --
@@ -298,12 +339,8 @@ lengthGT4 = lengthGT 4
     lengthGT 0 _ = True
     lengthGT n (_ :. xs) = lengthGT (n - 1) xs
 
--- lengthGT4 Nil = False
--- lengthGT4 (_:.Nil) = False
--- lengthGT4 (_:._:.Nil) = False
--- lengthGT4 (_:._:._:.Nil) = False
--- lengthGT4 (_:._ :._ :._:.Nil) = False
--- lengthGT4 (_:._) = True
+-- lengthGT4 (_:._:._:._:._:._) = True
+-- lengthGT4 _ = False
 
 -- | Reverse a list.
 --
@@ -337,7 +374,9 @@ produce ::
   (a -> a)
   -> a
   -> List a
-produce f s =
+produce f s = s :. produce f (f s)
+
+produce' f s =
   let inf x = x :. (inf $ f x)
   in inf s
 

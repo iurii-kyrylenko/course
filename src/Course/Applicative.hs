@@ -61,8 +61,10 @@ infixl 4 <*>
   (a -> b)
   -> f a
   -> f b
-(<$>) =
-  error "todo: Course.Applicative#(<$>)"
+(<$>) = (<*>) . pure
+-- f <$> x = pure f <*> x
+-- (<$>) f x = (<*>) (pure f) x
+-- (<$>) f = (<*>) (pure f)
 
 -- | Insert into Id.
 --
@@ -74,14 +76,13 @@ instance Applicative Id where
   pure ::
     a
     -> Id a
-  pure =
-    error "todo: Course.Applicative pure#instance Id"
+  pure = Id
   (<*>) :: 
     Id (a -> b)
     -> Id a
     -> Id b
-  (<*>) =
-    error "todo: Course.Applicative (<*>)#instance Id"
+  Id f <*> Id x = Id $ f x
+  -- (<*>) (Id f) (Id x) = Id (f x)
 
 -- | Insert into a List.
 --
