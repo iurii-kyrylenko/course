@@ -13,6 +13,7 @@ module Course.Applicative(
 , sequence
 , replicateA
 , filtering
+, h1, h2, h3, h4
 , return
 , fail
 , (>>)
@@ -279,8 +280,10 @@ lift4 f x y z = (lift3 f x y z <*>)
   f a
   -> f b
   -> f b
-(*>) =
-  error "todo: Course.Applicative#(*>)"
+(*>) = lift2 $ pure id
+-- (*>) = lift2 (const id)
+-- x *> y = const id <$> x <*> y
+-- x *> y = (const id <$> x) <*> y
 
 -- | Apply, discarding the value of the second argument.
 -- Pronounced, left apply.
@@ -305,8 +308,11 @@ lift4 f x y z = (lift3 f x y z <*>)
   f b
   -> f a
   -> f b
-(<*) =
-  error "todo: Course.Applicative#(<*)"
+(<*) = lift2 const
+-- x <* y = const <$> x <*> y
+
+-- (<*) = flip (*>)
+-- (<*) = flip (lift2 (const id))
 
 -- | Sequences a list of structures to a structure of list.
 --
@@ -328,8 +334,7 @@ sequence ::
   Applicative f =>
   List (f a)
   -> f (List a)
-sequence =
-  error "todo: Course.Applicative#sequence"
+sequence = foldRight (lift2 (:.)) (pure Nil)
 
 -- | Replicate an effect a given number of times.
 --
@@ -352,8 +357,10 @@ replicateA ::
   Int
   -> f a
   -> f (List a)
-replicateA =
-  error "todo: Course.Applicative#replicateA"
+replicateA n = sequence . (replicate n)
+-- replicateA n = (\y x -> sequence (y x)) . (replicate n)
+-- replicateA n = \x -> sequence ((replicate n) x)
+-- replicateA n x = sequence $ replicate n x
 
 -- | Filter a list with a predicate that produces an effect.
 --
@@ -380,8 +387,21 @@ filtering ::
   (a -> f Bool)
   -> List a
   -> f (List a)
-filtering =
-  error "todo: Course.Applicative#filtering"
+filtering = h4
+
+h1 :: Applicative f => (a -> f Bool) -> List a -> f (List Bool)
+h1 p xs = sequence (p <$> xs)
+
+h2 :: Applicative f => (a -> f Bool) -> List a -> f (List a)
+h2 p xs = (h1 p xs) *> (pure xs)
+
+h3 :: List Bool -> List a -> List a
+h3 Nil _ = Nil
+h3 _ Nil = Nil
+h3 (b:.bs) (x:.xs) = if b then x :. h3 bs xs else h3 bs xs
+
+h4 :: Applicative f => (a -> f Bool) -> List a -> f (List a)
+h4 p xs = lift2 h3 (h1 p xs) (h2 p xs)
 
 -----------------------
 -- SUPPORT LIBRARIES --
