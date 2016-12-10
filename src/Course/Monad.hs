@@ -8,6 +8,7 @@ module Course.Monad(
 , join
 , (>>=)  
 , (<=<)
+, (<*.>)
 ) where
 
 import Course.Applicative hiding ((<*>))
@@ -63,15 +64,26 @@ infixr 1 =<<
 --
 -- >>> ((*) <*> (+2)) 3
 -- 15
+
 (<*>) ::
   Monad f =>
   f (a -> b)
   -> f a
   -> f b
-(<*>) =
-  error "todo: Course.Monad#(<*>)"
+x <*> y = (\f -> f <$> y) =<< x
+-- (<*.>) x y = (=<<) (\f -> (\z -> f <$> z) y) x
 
 infixl 4 <*>
+
+-- Try tests with <*.> instead of <*>
+(<*.>) ::
+  Monad f =>
+  f (a -> b)
+  -> f a
+  -> f b
+x <*.> y = (\f -> f <$> y) =<< x
+
+infixl 4 <*.>
 
 -- | Binds a function on the Id monad.
 --
@@ -82,8 +94,7 @@ instance Monad Id where
     (a -> Id b)
     -> Id a
     -> Id b
-  (=<<) =
-    error "todo: Course.Monad (=<<)#instance Id"
+  f =<< (Id x) = f x
 
 -- | Binds a function on a List.
 --
@@ -95,7 +106,7 @@ instance Monad List where
     -> List a
     -> List b
   (=<<) =
-    error "todo: Course.Monad (=<<)#instance List"
+    flatMap
 
 -- | Binds a function on an Optional.
 --
@@ -107,7 +118,7 @@ instance Monad Optional where
     -> Optional a
     -> Optional b
   (=<<) =
-    error "todo: Course.Monad (=<<)#instance Optional"
+    bindOptional
 
 -- | Binds a function on the reader ((->) t).
 --
@@ -118,8 +129,7 @@ instance Monad ((->) t) where
     (a -> ((->) t b))
     -> ((->) t a)
     -> ((->) t b)
-  (=<<) =
-    error "todo: Course.Monad (=<<)#instance ((->) t)"
+  f =<< g = \x -> f (g x) x
 
 -- | Flattens a combined structure to a single structure.
 --
@@ -138,8 +148,9 @@ join ::
   Monad f =>
   f (f a)
   -> f a
-join =
-  error "todo: Course.Monad#join"
+join = (=<<) id
+-- join = (id =<<)
+-- join m = id =<< m
 
 -- | Implement a flipped version of @(=<<)@, however, use only
 -- @join@ and @(<$>)@.
@@ -152,8 +163,7 @@ join =
   f a
   -> (a -> f b)
   -> f b
-(>>=) =
-  error "todo: Course.Monad#(>>=)"
+m >>= f = join $ f <$> m
 
 infixl 1 >>=
 
@@ -168,8 +178,9 @@ infixl 1 >>=
   -> (a -> f b)
   -> a
   -> f c
-(<=<) =
-  error "todo: Course.Monad#(<=<)"
+-- (f <=< g) x = f =<< g =<< return x
+-- (f <=< g) x = f =<< g x
+f <=< g = (=<<) f . g
 
 infixr 1 <=<
 
