@@ -13,7 +13,7 @@ module Course.Applicative(
 , sequence
 , replicateA
 , filtering
-, h1, h2, h3, h4
+, myFiltering
 , return
 , fail
 , (>>)
@@ -387,21 +387,31 @@ filtering ::
   (a -> f Bool)
   -> List a
   -> f (List a)
-filtering = h4
+filtering p = foldRight (\x -> lift2 (\y -> if y then (x:.) else id) (p x)) (pure Nil)
+-- filtering p xs = foldRight (\x a -> ... if p x then x:.a else a ...) (pure Nil) xs
+-- filtering p xs = foldRight (\x a -> ... if y then x:.a1 else a1 ...) (pure Nil) xs
+-- filtering p xs = foldRight (\x a -> ... lift2 (if y then x:.a1 else a1) (p x) a ...) (pure Nil) xs
+-- filtering p xs = foldRight (\x a -> lift2 (\y a1 -> if y then x:.a1 else a1) (p x) a) (pure Nil) xs
 
-h1 :: Applicative f => (a -> f Bool) -> List a -> f (List Bool)
-h1 p xs = sequence (p <$> xs)
+myFiltering :: Applicative f => (a -> f Bool) -> List a -> f (List a)
+myFiltering p xs = lift2 shrink (sequence $ p <$> xs) (pure xs)
+  where
+    shrink :: List Bool -> List a -> List a
+    shrink Nil _ = Nil
+    shrink _ Nil = Nil
+    shrink (b:.bs) (y:.ys) = if b then y :. shrink bs ys else shrink bs ys
 
-h2 :: Applicative f => (a -> f Bool) -> List a -> f (List a)
-h2 p xs = (h1 p xs) *> (pure xs)
+-- h1 :: Applicative f => (a -> f Bool) -> List a -> f (List Bool)
+-- h1 p xs = sequence (p <$> xs)
 
-h3 :: List Bool -> List a -> List a
-h3 Nil _ = Nil
-h3 _ Nil = Nil
-h3 (b:.bs) (x:.xs) = if b then x :. h3 bs xs else h3 bs xs
+-- h2 :: List Bool -> List a -> List a
+-- h2 Nil _ = Nil
+-- h2 _ Nil = Nil
+-- h2 (b:.bs) (x:.xs) = if b then x :. h2 bs xs else h2 bs xs
 
-h4 :: Applicative f => (a -> f Bool) -> List a -> f (List a)
-h4 p xs = lift2 h3 (h1 p xs) (h2 p xs)
+-- my solution:
+-- h3 :: Applicative f => (a -> f Bool) -> List a -> f (List a)
+-- h3 p xs = lift2 h2 (h1 p xs) (pure xs)
 
 -----------------------
 -- SUPPORT LIBRARIES --
