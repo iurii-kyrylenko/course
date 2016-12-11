@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Course.MonadTutorial where
 
@@ -10,7 +11,7 @@ import Data.Functor(Functor(fmap))
 import Data.Int(Int)
 import Data.String(IsString(fromString))
 import Prelude(Show)
-import System.IO(IO)
+import System.IO(IO, getLine)
 
 {-
 
@@ -74,32 +75,64 @@ The data structures given are:
 
 -}
 
+{-
+
+-- Iurii Kyrylenko : desugaring 'do'
+
+mySequence :: Monad m => [m a] -> m [a]
+mySequence = foldr (\m ms -> do
+  x <- m
+  xs <- ms
+  return (x:xs)
+  ) (return [])
+
+h m ms = do
+  x <- m
+  xs <- ms
+  return (x:xs)
+
+h m ms = m >>= (\x -> ms >>= (\xs -> return (x:xs)))
+
+h m ms = m >>= \x -> ms >>= \xs -> return (x:xs)
+
+h m ms =
+  m >>= \x ->
+  ms >>= \xs ->
+  return (x:xs)
+
+mySequence :: Monad m => [m a] -> m [a]
+mySequence = foldr h (return [])
+
+t1 = mySequence [Just 1, Just 2, Just 3]
+t2 = mySequence [Just 1, Nothing, Just 3]
+t3 = mySequence [[1,2,3], [4,5,6], [7,8,9]]
+
+sequenceId :: [Id a] -> Id [a]
+sequenceId =
+  foldr (\m ms ->
+    bindId (\x ->
+    bindId (\xs ->
+    pure (x:.xs)) ms) m
+  ) (pureId Nil)
+-}
+
 data Id a =
   Id a
   deriving (Eq, Show)
 
-bindId ::
-  (a -> Id b)
-  -> Id a
-  -> Id b
-bindId f (Id a) =
-  f a
+instance BindAndPure Id where
+  bind ::
+    (a -> Id b)
+    -> Id a
+    -> Id b
+  bind f (Id a) =
+    f a
 
-pureId ::
-  a
-  -> Id a
-pureId =
-  Id
-
-sequenceId ::
-  [Id a]
-  -> Id [a]
-sequenceId =
-  foldr (\a as ->
-    bindId (\a' ->
-    bindId (\as' ->
-    pureId (a' : as')) as) a)
-  (pureId [])
+  pure ::
+    a
+    -> Id a
+  pure =
+    Id
 
 ----
 
@@ -108,148 +141,111 @@ data Optional a =
   | Full a
   deriving (Eq, Show)
 
-bindOptional ::
-  (a -> Optional b)
-  -> Optional a
-  -> Optional b
-bindOptional _ Empty =
-  Empty
-bindOptional f (Full a) =
-  f a
+instance BindAndPure Optional where
+  bind ::
+    (a -> Optional b)
+    -> Optional a
+    -> Optional b
+  bind _ Empty =
+    Empty
+  bind f (Full a) =
+    f a
 
-pureOptional ::
-  a
-  -> Optional a
-pureOptional =
-  Full
-
-sequenceOptional ::
-  [Optional a]
-  -> Optional [a]
-sequenceOptional =
-  foldr (\a as ->
-    bindOptional (\a' ->
-    bindOptional (\as' ->
-    pureOptional (a' : as')) as) a)
-  (pureOptional [])
+  pure ::
+    a
+    -> Optional a
+  pure =
+    Full
 
 ----
 
 data IntReader a =
   IntReader (Int -> a)
 
-bindIntReader ::
-  (a -> IntReader b)
-  -> IntReader a
-  -> IntReader b
-bindIntReader f (IntReader g) =
-  IntReader (\x -> let IntReader r = f (g x) in r x)
+-- read :: IntReader a -> Int -> a
+-- read (IntReader f) i = f i
+-- t = read (sequence [IntReader (\i -> 123), IntReader (\i -> 124)]) 42 -- [123, 124]
 
-pureIntReader ::
-  a
-  -> IntReader a
-pureIntReader =
-  IntReader . return
+instance BindAndPure IntReader where
+  bind ::
+    (a -> IntReader b)
+    -> IntReader a
+    -> IntReader b
+  bind f (IntReader g) =
+    IntReader (\x -> let IntReader r = f (g x) in r x)
 
-sequenceIntReader ::
-  [IntReader a]
-  -> IntReader [a]
-sequenceIntReader =
-  foldr (\a as ->
-    bindIntReader (\a' ->
-    bindIntReader (\as' ->
-    pureIntReader (a' : as')) as) a)
-  (pureIntReader [])
+  pure ::
+    a
+    -> IntReader a
+  pure =
+    IntReader . return
 
 ----
 
 data Reader r a =
   Reader (r -> a)
-  
-bindReader ::
-  (a -> Reader r b)
-  -> Reader r a
-  -> Reader r b
-bindReader f (Reader g) =
-  Reader (\x -> let Reader r = f (g x) in r x)
 
-pureReader ::
-  a
-  -> Reader r a
-pureReader =
-  Reader . return
+-- read :: Reader r a -> r -> a
+-- read (Reader f) i = f i
+-- t = read (sequence [Reader (\i -> 123), Reader (\i -> 124)]) 42 -- [123, 124]
 
-sequenceReader ::
-  [Reader r a]
-  -> Reader r [a]
-sequenceReader =
-  foldr (\a as ->
-    bindReader (\a' ->
-    bindReader (\as' ->
-    pureReader (a' : as')) as) a)
-  (pureReader [])
+instance BindAndPure (Reader r) where
+  bind ::
+    (a -> Reader r b)
+    -> Reader r a
+    -> Reader r b
+  bind f (Reader g) =
+    Reader (\x -> let Reader r = f (g x) in r x)
+
+  pure ::
+    a
+    -> Reader r a
+  pure =
+    Reader . return
 
 ----
 
 data IntState a =
   IntState (Int -> (a, Int))
-  
-bindIntState ::
-  (a -> IntState b)
-  -> IntState a
-  -> IntState b
-bindIntState f (IntState g) =
-  IntState (\i -> 
-    let (a, j) = g i
-        IntState h = f a
-    in h j)
 
-pureIntState ::
-  a
-  -> IntState a
-pureIntState a =
-  IntState (\i -> (a, i))
+instance BindAndPure IntState where
+  bind ::
+    (a -> IntState b)
+    -> IntState a
+    -> IntState b
+  bind f (IntState g) =
+    IntState (\i ->
+      let (a, j) = g i
+          IntState h = f a
+      in h j)
 
-sequenceIntState ::
-  [IntState a]
-  -> IntState [a]
-sequenceIntState =
-  foldr (\a as ->
-    bindIntState (\a' ->
-    bindIntState (\as' ->
-    pureIntState (a' : as')) as) a)
-  (pureIntState [])
+  pure ::
+    a
+    -> IntState a
+  pure a =
+    IntState (\i -> (a, i))
 
 ----
 
 data State s a =
   State (s -> (a, s))
 
-bindState ::
-  (a -> State s b)
-  -> State s a
-  -> State s b
-bindState f (State g) =
-  State (\s -> 
-    let (a, t) = g s
-        State h = f a
-    in h t)
+instance BindAndPure (State s) where
+  bind ::
+    (a -> State s b)
+    -> State s a
+    -> State s b
+  bind f (State g) =
+    State (\s ->
+      let (a, t) = g s
+          State h = f a
+      in h t)
 
-pureState ::
-  a
-  -> State s a
-pureState a =
-  State (\s -> (a, s))
-
-sequenceState ::
-  [State s a]
-  -> State s [a]
-sequenceState =
-  foldr (\a as ->
-    bindState (\a' ->
-    bindState (\as' ->
-    pureState (a' : as')) as) a)
-  (pureState [])
+  pure ::
+    a
+    -> State s a
+  pure a =
+    State (\s -> (a, s))
 
 ----
 
@@ -258,30 +254,24 @@ data Or t a =
   | That a
   deriving (Eq, Show)
 
-bindOr ::
-  (a -> Or t b)
-  -> Or t a
-  -> Or t b
-bindOr _ (This t) =
-  This t
-bindOr f (That a) =
-  f a
+-- t1 = sequence [This 42, That 43] -- This 42
+-- t2 = sequence [That 42, This 43] -- This 43
 
-pureOr ::
-  a
-  -> Or t a
-pureOr =
-  That
+instance BindAndPure (Or t) where
+  bind ::
+    (a -> Or t b)
+    -> Or t a
+    -> Or t b
+  bind _ (This t) =
+    This t
+  bind f (That a) =
+    f a
 
-sequenceOr ::
-  [Or t a]
-  -> Or t [a]
-sequenceOr =
-  foldr (\a as ->
-    bindOr (\a' ->
-    bindOr (\as' ->
-    pureOr (a' : as')) as) a)
-  (pureOr [])
+  pure ::
+    a
+    -> Or t a
+  pure =
+    That
 
 ----
 
@@ -290,30 +280,21 @@ data ListFree a =
   | ListMore [ListFree a]
   deriving (Eq, Show)
 
-bindListFree ::
-  (a -> ListFree b)
-  -> ListFree a
-  -> ListFree b
-bindListFree f (ListDone a) =
-  f a
-bindListFree f (ListMore r) =
-  ListMore (fmap (bindListFree f) r)
+instance BindAndPure ListFree where
+  bind ::
+    (a -> ListFree b)
+    -> ListFree a
+    -> ListFree b
+  bind f (ListDone a) =
+    f a
+  bind f (ListMore r) =
+    ListMore (fmap (bind f) r)
 
-pureListFree ::
-  a
-  -> ListFree a
-pureListFree =
-  ListDone
-
-sequenceListFree ::
-  [ListFree a]
-  -> ListFree [a]
-sequenceListFree =
-  foldr (\a as ->
-    bindListFree (\a' ->
-    bindListFree (\as' ->
-    pureListFree (a' : as')) as) a)
-  (pureListFree [])
+  pure ::
+    a
+    -> ListFree a
+  pure =
+    ListDone
 
 ----
 
@@ -322,30 +303,21 @@ data IntReaderFree a =
   | IntReaderMore [IntReaderFree a]
   deriving (Eq, Show)
 
-bindIntReaderFree ::
-  (a -> IntReaderFree b)
-  -> IntReaderFree a
-  -> IntReaderFree b
-bindIntReaderFree f (IntReaderDone a) =
-  f a
-bindIntReaderFree f (IntReaderMore r) =
-  IntReaderMore (fmap (bindIntReaderFree f) r)
+instance BindAndPure IntReaderFree where
+  bind ::
+    (a -> IntReaderFree b)
+    -> IntReaderFree a
+    -> IntReaderFree b
+  bind f (IntReaderDone a) =
+    f a
+  bind f (IntReaderMore r) =
+    IntReaderMore (fmap (bind f) r)
 
-pureIntReaderFree ::
-  a
-  -> IntReaderFree a
-pureIntReaderFree =
-  IntReaderDone
-
-sequenceIntReaderFree ::
-  [IntReaderFree a]
-  -> IntReaderFree [a]
-sequenceIntReaderFree =
-  foldr (\a as ->
-    bindIntReaderFree (\a' ->
-    bindIntReaderFree (\as' ->
-    pureIntReaderFree (a' : as')) as) a)
-  (pureIntReaderFree [])
+  pure ::
+    a
+    -> IntReaderFree a
+  pure =
+    IntReaderDone
 
 ----
 
@@ -353,30 +325,21 @@ data ReaderFree r a =
   ReaderDone a
   | ReaderMore (Reader r (ReaderFree r a))
 
-bindReaderFree ::
-  (a -> ReaderFree r b)
-  -> ReaderFree r a
-  -> ReaderFree r b
-bindReaderFree f (ReaderDone a) =
-  f a
-bindReaderFree f (ReaderMore (Reader r)) =
-  ReaderMore (Reader (bindReaderFree f . r))
+instance BindAndPure (ReaderFree r) where
+  bind ::
+    (a -> ReaderFree r b)
+    -> ReaderFree r a
+    -> ReaderFree r b
+  bind f (ReaderDone a) =
+    f a
+  bind f (ReaderMore (Reader r)) =
+    ReaderMore (Reader (bind f . r))
 
-pureReaderFree ::
-  a
-  -> ReaderFree r a
-pureReaderFree =
-  ReaderDone
-
-sequenceReaderFree ::
-  [ReaderFree r a]
-  -> ReaderFree r [a]
-sequenceReaderFree =
-  foldr (\a as ->
-    bindReaderFree (\a' ->
-    bindReaderFree (\as' ->
-    pureReaderFree (a' : as')) as) a)
-  (pureReaderFree [])
+  pure ::
+    a
+    -> ReaderFree r a
+  pure =
+    ReaderDone
 
 ----
 
@@ -384,59 +347,42 @@ data Free f a =
   Done a
   | More (f (Free f a))
 
-bindFree ::
-  Functor f =>
-  (a -> Free f b)
-  -> Free f a
-  -> Free f b
-bindFree f (Done a) =
-  f a
-bindFree f (More r) =
-  More (fmap (bindFree f) r)
+instance Functor f => BindAndPure (Free f) where
+  bind ::
+    Functor f =>
+    (a -> Free f b)
+    -> Free f a
+    -> Free f b
+  bind f (Done a) =
+    f a
+  bind f (More r) =
+    More (fmap (bind f) r)
 
-pureFree ::
-  a
-  -> Free f a
-pureFree =
-  Done
-
-sequenceFree ::
-  Functor f =>
-  [Free f a]
-  -> Free f [a]
-sequenceFree =
-  foldr (\a as ->
-    bindFree (\a' ->
-    bindFree (\as' ->
-    pureFree (a' : as')) as) a)
-  (pureFree [])
+  pure ::
+    a
+    -> Free f a
+  pure =
+    Done
 
 ----
 
 -- data IO = …
 
-bindIO ::
-  (a -> IO b)
-  -> IO a
-  -> IO b
-bindIO f o =
-  f =<< o
+-- test = sequence [getLine, getLine]
 
-pureIO ::
-  a
-  -> IO a
-pureIO =
-  return
+instance BindAndPure IO where
+  bind ::
+    (a -> IO b)
+    -> IO a
+    -> IO b
+  bind f o =
+    f =<< o
 
-sequenceIO ::
-  [IO a]
-  -> IO [a]
-sequenceIO =
-  foldr (\a as ->
-    bindIO (\a' ->
-    bindIO (\as' ->
-    pureIO (a' : as')) as) a)
-  (pureIO [])
+  pure ::
+    a
+    -> IO a
+  pure =
+    return
 
 ----
 
@@ -448,4 +394,11 @@ class BindAndPure f where
   pure ::
     a
     -> f a
-    
+
+sequence :: BindAndPure m => [m a] -> m [a]
+sequence =
+  foldr (\a as ->
+    bind (\a' ->
+    bind (\as' ->
+    pure (a' : as')) as) a)
+  (pure [])
