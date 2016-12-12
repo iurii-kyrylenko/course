@@ -71,43 +71,47 @@ the contents of c
 -}
 
 -- /Tip:/ use @getArgs@ and @run@
-main ::
-  IO ()
-main =
-  error "todo: Course.FileIO#main"
+main :: IO ()
+main = getArgs >>= \args ->
+  case args of
+    (fname:.Nil) -> run fname
+    _            -> putStrLn "usage ..."
+-- main = getArgs >>= (\(fname:._) -> run fname)
 
-type FilePath =
-  Chars
+-- main = do
+--   (fname:.rest) <- getArgs
+--   putStrLn fname
+
+type FilePath = Chars
 
 -- /Tip:/ Use @getFiles@ and @printFiles@.
-run ::
-  Chars
-  -> IO ()
-run =
-  error "todo: Course.FileIO#run"
+run :: Chars -> IO ()
+run fname =
+  readFile fname >>=
+  getFiles . lines >>=
+  printFiles
 
-getFiles ::
-  List FilePath
-  -> IO (List (FilePath, Chars))
-getFiles =
-  error "todo: Course.FileIO#getFiles"
+-- run fname =
+--   readFile fname >>= \content ->
+--   getFiles (lines content) >>= \list ->
+--   printFiles list
 
-getFile ::
-  FilePath
-  -> IO (FilePath, Chars)
-getFile =
-  error "todo: Course.FileIO#getFile"
+getFiles :: List FilePath -> IO (List (FilePath, Chars))
+getFiles = sequence . (<$>) getFile
+-- getFiles = sequence . (getFile <$>)
+-- getFiles px = sequence $ getFile <$> px
 
-printFiles ::
-  List (FilePath, Chars)
-  -> IO ()
-printFiles =
-  error "todo: Course.FileIO#printFiles"
+getFile :: FilePath -> IO (FilePath, Chars)
+getFile = lift2 (<$>) (,) readFile -- would never guess
+-- getFile fname = lift2 (,) (pure fname) (readFile fname)
+-- getFile fname = readFile fname >>= \content -> return (fname, content)
 
-printFile ::
-  FilePath
-  -> Chars
-  -> IO ()
-printFile =
-  error "todo: Course.FileIO#printFile"
+printFiles :: List (FilePath, Chars) -> IO ()
+printFiles = void . sequence . (<$>) (uncurry printFile)
+-- printFiles = void . sequence . ((uncurry printFile) <$>)
+-- printFiles = void . sequence . ((\(x, y) -> printFile x y) <$>)
+-- printFiles xs = void $ sequence $ (\(x, y) -> printFile x y) <$> xs
+
+printFile :: FilePath -> Chars -> IO ()
+printFile fname content = putStrLn $ "============ " ++ fname ++ "\n" ++ content
 
