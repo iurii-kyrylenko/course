@@ -36,12 +36,13 @@ newtype State s a =
 -- >>> runState ((+1) <$> State (\s -> (9, s * 2))) 3
 -- (10,6)
 instance Functor (State s) where
-  (<$>) ::
-    (a -> b)
-    -> State s a
-    -> State s b
-  (<$>) =
-    error "todo: Course.State#(<$>)"
+  (<$>) :: (a -> b) -> State s a -> State s b
+  f <$> State g = State $ \s ->
+    let (a, s1) = g s
+    in  (f a, s1)
+  -- f <$> p = State $ \s ->
+  --   let (a, s1) = runState p s
+  --   in  (f a, s1)
 
 -- | Implement the `Applicative` instance for `State s`.
 --
@@ -51,21 +52,21 @@ instance Functor (State s) where
 -- >>> runState (pure (+1) <*> pure 0) 0
 -- (1,0)
 --
--- >>> import qualified Prelude as P
--- >>> runState (State (\s -> ((+3), s P.++ ["apple"])) <*> State (\s -> (7, s P.++ ["banana"]))) []
+-- >>> runState (State (\s -> ((+3), s ++ "apple":.Nil)) <*> State (\s -> (7, s ++ "banana":.Nil))) Nil
 -- (10,["apple","banana"])
 instance Applicative (State s) where
-  pure ::
-    a
-    -> State s a
-  pure =
-    error "todo: Course.State pure#instance (State s)"
-  (<*>) ::
-    State s (a -> b)
-    -> State s a
-    -> State s b 
-  (<*>) =
-    error "todo: Course.State (<*>)#instance (State s)"
+  pure :: a -> State s a
+  pure a = State $ \s -> (a, s)
+
+  (<*>) :: State s (a -> b) -> State s a -> State s b
+  State ff <*> State fd = State $ \s ->
+    let (f, s1) = ff s
+        (v, s2) = fd s1
+    in  (f v, s2)
+  -- pf <*> pd = State $ \s ->
+  --   let (f, s1) = runState pf s
+  --       (v, s2) = runState pd s1
+  --   in  (f v, s2)
 
 -- | Implement the `Bind` instance for `State s`.
 --
@@ -75,51 +76,43 @@ instance Applicative (State s) where
 -- >>> let modify f = State (\s -> ((), f s)) in runState (modify (+1) >>= \() -> modify (*2)) 7
 -- ((),16)
 instance Monad (State s) where
-  (=<<) ::
-    (a -> State s b)
-    -> State s a
-    -> State s b
-  (=<<) =
-    error "todo: Course.State (=<<)#instance (State s)"
+  (=<<) :: (a -> State s b) -> State s a -> State s b
+  f =<< State fm = State $ \s ->
+    let (a, s1) = fm s
+    in  runState (f a) s1
+  -- f =<< m = State $ \s ->
+  --   let (a, s1) = runState m s
+  --   in  runState (f a) s1
 
 -- | Run the `State` seeded with `s` and retrieve the resulting state.
 --
 -- prop> \(Fun _ f) -> exec (State f) s == snd (runState (State f) s)
-exec ::
-  State s a
-  -> s
-  -> s
-exec =
-  error "todo: Course.State#exec"
+exec :: State s a -> s -> s
+exec (State fp) = snd . fp
+-- exec (State fp) s = snd $ fp s
+-- exec p s = snd $ runState p s
 
 -- | Run the `State` seeded with `s` and retrieve the resulting value.
 --
 -- prop> \(Fun _ f) -> eval (State f) s == fst (runState (State f) s)
-eval ::
-  State s a
-  -> s
-  -> a
-eval =
-  error "todo: Course.State#eval"
+eval ::State s a -> s -> a
+eval (State fp) = fst . fp
+-- eval p s = fst $ runState p s
 
 -- | A `State` where the state also distributes into the produced value.
 --
 -- >>> runState get 0
 -- (0,0)
-get ::
-  State s s
-get =
-  error "todo: Course.State#get"
+get :: State s s
+get = State $ \s -> (s, s)
 
 -- | A `State` where the resulting state is seeded with the given value.
 --
 -- >>> runState (put 1) 0
 -- ((),1)
-put ::
-  s
-  -> State s ()
-put =
-  error "todo: Course.State#put"
+put :: s -> State s ()
+put = State . const . (,) ()
+-- put s = State $ const ((), s)
 
 -- | Find the first element in a `List` that satisfies a given predicate.
 -- It is possible that no element is found, hence an `Optional` result.
