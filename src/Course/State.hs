@@ -128,13 +128,35 @@ put = State . const . (,) ()
 --
 -- >>> let p x = (\s -> (const $ pure (x == 'i')) =<< put (1+s)) =<< get in runState (findM p $ listh ['a'..'h']) 0
 -- (Empty,8)
+
+--
+-- Playing with state:
+--
+-- p :: Char -> State Int Bool
+-- p x = get >>= (\s -> put (1 + s) >>= (const $ pure (x == 'c')))
+--
+-- t1 = runState (p 'c') 0
+-- t2 = runState (p 'a' >>= \a -> p 'c' >>= \c -> return (a:.c:.Nil)) 0
+-- t3 = runState (p 'a' >>= \a -> p 'c' >>= \c -> return ('a':.'c':.Nil)) 0
+-- t4 x = runState (p x >>= \b -> if b then return $ Full x else return Empty) 0
+--
+-- p' x = p x >>= \b -> if b then return $ Full x else return Empty
+-- t5 = runState (p' 'a' >>= \_ -> p' 'c' >>= \_ -> p' 'd') 0
+--
+-- -- Solution
+-- t6 p xs = foldRight (\x a -> p x >>= \b -> if b then return $ Full x else a) (return Empty) xs
+--
+
 findM ::
   Monad f =>
   (a -> f Bool)
   -> List a
   -> f (Optional a)
-findM =
-  error "todo: Course.State#findM"
+findM p = foldRight
+  (\x a ->
+    p x >>= \b ->
+    if b then return $ Full x else a)
+  (return Empty)
 
 -- | Find the first element in a `List` that repeats.
 -- It is possible that no element repeats, hence an `Optional` result.
