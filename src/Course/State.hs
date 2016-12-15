@@ -183,7 +183,7 @@ findM p = foldRight
 
 firstRepeat :: Ord a => List a -> Optional a
 firstRepeat xs =
-  let p x = State $ \s -> if S.member x s then (True, s) else (False, S.insert x s)
+  let p x = State $ \s -> (S.member x s, S.insert x s)
   in  eval (findM p xs) S.empty
 
 -- | Remove all duplicate elements in a `List`.
@@ -192,12 +192,10 @@ firstRepeat xs =
 -- prop> firstRepeat (distinct xs) == Empty
 --
 -- prop> distinct xs == distinct (flatMap (\x -> x :. x :. Nil) xs)
-distinct ::
-  Ord a =>
-  List a
-  -> List a
-distinct =
-  error "todo: Course.State#distinct"
+
+distinct :: Ord a => List a -> List a
+distinct xs = eval (filtering p xs) S.empty
+  where p x = State $ \s -> (not $ S.member x s, S.insert x s)
 
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
