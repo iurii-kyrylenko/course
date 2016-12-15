@@ -165,12 +165,26 @@ findM p = foldRight
 --
 -- prop> case firstRepeat xs of Empty -> let xs' = hlist xs in nub xs' == xs'; Full x -> length (filter (== x) xs) > 1
 -- prop> case firstRepeat xs of Empty -> True; Full x -> let (l, (rx :. rs)) = span (/= x) xs in let (l2, r2) = span (/= x) rs in let l3 = hlist (l ++ (rx :. Nil) ++ l2) in nub l3 == l3
-firstRepeat ::
-  Ord a =>
-  List a
-  -> Optional a
-firstRepeat =
-  error "todo: Course.State#firstRepeat"
+
+-- Playing with state
+-- p :: Ord a => a -> State (S.Set a) Bool
+-- p x = State $ \s -> if S.member x s then (True, s) else (False, S.insert x s)
+--
+-- t1 = runState (p 42) S.empty
+-- t2 = runState (p 42) $ S.fromList [43, 42]
+-- t3 = runState (findM p $ listh "qwe3rty12345") S.empty
+-- t4 = runState (findM p $ listh "qwe6rty12345") S.empty
+--
+-- Solution
+-- myFirstRepeat :: Ord a => List a -> Optional a
+-- myFirstRepeat xs = eval (findM p xs) S.empty
+--
+-- t5 = myFirstRepeat $ listh "qwerty123asdfg1mnk"
+
+firstRepeat :: Ord a => List a -> Optional a
+firstRepeat xs =
+  let p x = State $ \s -> if S.member x s then (True, s) else (False, S.insert x s)
+  in  eval (findM p xs) S.empty
 
 -- | Remove all duplicate elements in a `List`.
 -- /Tip:/ Use `filtering` and `State` with a @Data.Set#Set@.
