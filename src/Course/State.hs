@@ -95,7 +95,7 @@ exec (State fp) = snd . fp
 -- | Run the `State` seeded with `s` and retrieve the resulting value.
 --
 -- prop> \(Fun _ f) -> eval (State f) s == fst (runState (State f) s)
-eval ::State s a -> s -> a
+eval :: State s a -> s -> a
 eval (State fp) = fst . fp
 -- eval p s = fst $ runState p s
 
@@ -195,7 +195,7 @@ firstRepeat xs =
 
 distinct :: Ord a => List a -> List a
 distinct xs = eval (filtering p xs) S.empty
-  where p x = State $ \s -> (not $ S.member x s, S.insert x s)
+  where p x = State $ \s -> (S.notMember x s, S.insert x s)
 
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
@@ -218,8 +218,38 @@ distinct xs = eval (filtering p xs) S.empty
 --
 -- >>> isHappy 44
 -- True
-isHappy ::
-  Integer
-  -> Bool
-isHappy =
-  error "todo: Course.State#isHappy"
+
+-- toDigits :: Integer -> List Integer
+-- toDigits n
+--   | n < 0     = toDigits $ negate n
+--   | n < 10    = n :. Nil
+--   | otherwise = let (d, m) = divMod n 10
+--                 in  m :. toDigits d
+-- happyEval :: Integer -> Integer
+-- happyEval = foldRight (\x a -> x*x + a) 0 . toDigits
+
+-- happyCheck :: Integer -> State (S.Set Integer) Bool
+-- happyCheck n =
+--   let e = happyEval n
+--       isOne = e == 1
+--   in  State $ \s -> if isOne || S.member e s then (isOne, s) else runState (happyCheck e) (S.insert e s)
+
+-- isHappy :: Integer -> Bool
+-- isHappy n = eval (happyCheck n) S.empty
+
+isHappy :: Integer -> Bool
+isHappy x =
+  let toDigits n
+        | n < 0     = toDigits $ negate n
+        | n < 10    = n :. Nil
+        | otherwise = let (d, m) = divMod n 10
+                      in  m :. toDigits d
+      happyEval = foldRight (\n a -> n * n + a) 0 . toDigits
+      happyCheck n =
+        let e = happyEval n
+            isOne = e == 1
+        in  State $ \s -> if isOne || S.member e s then (isOne, s) else runState (happyCheck e) (S.insert e s)
+  in  eval (happyCheck x) S.empty
+
+-- t1 = sequence $ map (\n -> P.print (n, isHappy n)) (listh [1..100])
+-- 1 7 10 13 19 23 28 31
