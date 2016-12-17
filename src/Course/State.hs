@@ -197,6 +197,35 @@ distinct :: Ord a => List a -> List a
 distinct xs = eval (filtering p xs) S.empty
   where p x = State $ \s -> (S.notMember x s, S.insert x s)
 
+-- Refactoring using high-order function listWithState
+-- Also
+-- (lift2 f g1 h1) x = f (g1 x) (h1 x)
+-- (lift2 (lift2 f) g2 h2) x y = f (g2 x y) (h2 x y)
+-- (lift2 (lift2 (lift2 f) g3 h3)) x y = f (g3 x y z) (h3 x y z)
+
+listWithState :: Ord a =>
+  ((a -> State (S.Set a) Bool) -> List a -> State (S.Set a) b) ->
+  (a -> S.Set a -> Bool) ->
+  List a ->
+  b
+listWithState g k xs =
+  let p = State . lift2 (lift2 (,)) k S.insert
+  in  eval (g p xs) S.empty
+
+-- listWithState g k xs =
+  -- let p x = State $ \s -> (lift2 (lift2 (,)) k S.insert) x s
+  -- in  eval (g p xs) S.empty
+
+-- listWithState g k xs =
+--   let p x = State $ \s -> (k x s, S.insert x s)
+--   in  eval (g p xs) S.empty
+
+firstRepeat2:: Ord a => List a -> Optional a
+firstRepeat2 = listWithState findM S.member
+
+distinct2 :: Ord a => List a -> List a
+distinct2 = listWithState filtering S.notMember
+
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
 -- because it results in a recurring sequence.
@@ -253,3 +282,11 @@ isHappy x =
 
 -- t1 = sequence $ map (\n -> P.print (n, isHappy n)) (listh [1..100])
 -- 1 7 10 13 19 23 28 31
+
+isHappyOneLiner :: Integer -> Bool
+isHappyOneLiner =
+  contains 1 .
+  firstRepeat .
+  produce (
+    toInteger . sum . map (join (*) . digitToInt) . show'
+  )
