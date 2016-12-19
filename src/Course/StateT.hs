@@ -80,12 +80,21 @@ instance Monad f => Applicative (StateT s f) where
 -- >>> let modify f = StateT (\s -> pure ((), f s)) in runStateT (modify (+1) >>= \() -> modify (*2)) 7
 -- ((),16)
 instance Monad f => Monad (StateT s f) where
+
   (=<<) ::
     (a -> StateT s f b)
     -> StateT s f a
     -> StateT s f b
-  (=<<) =
-    error "todo: Course.StateT (=<<)#instance (StateT s f)"
+
+  f =<< StateT p = StateT $ \s ->
+    (\(a, s1) -> runStateT (f a) s1) =<< p s
+
+  -- f =<< StateT p = StateT $ \s -> do
+  --   (a, s1) <- p s
+  --   runStateT (f a) s1
+
+  -- f =<< StateT p = StateT $ \s ->
+  --   join ((\(a, s1) -> runStateT (f a) s1) <$> p s)
 
 -- | A `State'` is `StateT` specialised to the `Id` functor.
 type State' s a =
@@ -98,8 +107,12 @@ type State' s a =
 state' ::
   (s -> (a, s))
   -> State' s a
-state' =
-  error "todo: Course.StateT#state'"
+state' p = StateT $ Id . p
+-- state' p = StateT $ \s -> Id (p s)
+
+-- state' p = StateT $ \s ->
+--   let (a, s1) = p s
+--   in  Id (a, s1)
 
 -- | Provide an unwrapper for `State'` values.
 --
@@ -109,8 +122,24 @@ runState' ::
   State' s a
   -> s
   -> (a, s)
-runState' =
-  error "todo: Course.StateT#runState'"
+
+runState' (StateT p) = runId . p
+
+-- runState' (StateT p) s = runId (p s)
+
+-- runId (Id t) = runId (p s) = t
+
+-- runState' (StateT p) s =
+--   let Id t = p s
+--   in  t
+
+-- runState' w s =
+--   let Id t = runStateT w s
+--   in  t
+
+-- runState' w s =
+--   let Id (a, s1) = runStateT w s
+--   in  (a, s1)
 
 -- | Run the `StateT` seeded with `s` and retrieve the resulting state.
 execT ::
