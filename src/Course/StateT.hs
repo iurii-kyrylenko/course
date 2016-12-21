@@ -301,8 +301,7 @@ data Logger l a =
 -- >>> (+3) <$> Logger (listh [1,2]) 3
 -- Logger [1,2] 6
 instance Functor (Logger l) where
-  (<$>) =
-    error "todo: Course.StateT (<$>)#instance (Logger l)"
+  f <$> Logger ls x = Logger ls (f x)
 
 -- | Implement the `Applicative` instance for `Logger`.
 --
@@ -312,10 +311,8 @@ instance Functor (Logger l) where
 -- >>> Logger (listh [1,2]) (+7) <*> Logger (listh [3,4]) 3
 -- Logger [1,2,3,4] 10
 instance Applicative (Logger l) where
-  pure =
-    error "todo: Course.StateT pure#instance (Logger l)"
-  (<*>) =
-    error "todo: Course.StateT (<*>)#instance (Logger l)"
+  pure = Logger Nil
+  Logger ls1 f <*> Logger ls2 d = Logger (ls1 ++ ls2) (f d) 
 
 -- | Implement the `Monad` instance for `Logger`.
 -- The `bind` implementation must append log values to maintain associativity.
@@ -323,19 +320,17 @@ instance Applicative (Logger l) where
 -- >>> (\a -> Logger (listh [4,5]) (a+3)) =<< Logger (listh [1,2]) 3
 -- Logger [1,2,4,5] 6
 instance Monad (Logger l) where
-  (=<<) =
-    error "todo: Course.StateT (=<<)#instance (Logger l)"
+  f =<< Logger ls x =
+    let Logger ls1 x1 = f x
+    in  Logger (ls ++ ls1) x1
 
 -- | A utility function for producing a `Logger` with one log value.
 --
 -- >>> log1 1 2
 -- Logger [1] 2
-log1 ::
-  l
-  -> a
-  -> Logger l a
-log1 =
-  error "todo: Course.StateT#log1"
+log1 :: l -> a -> Logger l a
+log1 = Logger . (:. Nil)
+-- log1 l = Logger (l :. Nil)
 
 -- | Remove all duplicate integers from a list. Produce a log as you go.
 -- If there is an element above 100, then abort the entire computation and produce no result.
@@ -351,9 +346,63 @@ log1 =
 --
 -- >>> distinctG $ listh [1,2,3,2,6,106]
 -- Logger ["even number: 2","even number: 2","even number: 6","aborting > 100: 106"] Empty
+
+-- Playing with state ----------------
+-- Optional --
+-- p1 :: (Ord a, Num a) => a -> StateT (S.Set a) Optional Bool
+-- p1 x = StateT $ \s -> if x > 100 then Empty else Full (S.notMember x s, S.insert x s)
+
+-- -- OptionalT over Id (runOptionalT $ ...) --
+-- p2 :: (Ord a, Num a) => a -> StateT (S.Set a) (OptionalT Id) Bool
+-- p2 x = StateT $ \s -> if x > 100 then OptionalT (Id Empty) else OptionalT (Id (Full (S.notMember x s, S.insert x s)))
+
+-- -- OptionalT over Id (runOptionalT $ ...) --
+-- p3 :: (Ord a, Num a) => a -> StateT (S.Set a) (OptionalT Id) Bool
+-- p3 x = StateT $ \s -> OptionalT (Id (
+--   if x > 100
+--     then Empty
+--     else Full (S.notMember x s, S.insert x s)))
+
+-- -- OptionalT over Logger (runOptionalT $ ...) --
+-- p4 :: (Ord a, Num a, Show a) => a -> StateT (S.Set a) (OptionalT (Logger Chars)) Bool
+-- p4 x = StateT $ \s -> OptionalT (Logger (show' x :. Nil) (
+--   if x > 100
+--     then Empty
+--     else Full (S.notMember x s, S.insert x s)))
+
+-- OptionalT over Logger (runOptionalT $ ...) --
+-- p :: (Ord a, Num a, Show a, Integral a) => a -> StateT (S.Set a) (OptionalT (Logger Chars)) Bool
+-- p x = StateT $ \s -> OptionalT (
+--   let ok = Full (S.notMember x s, S.insert x s)
+--   in  if x > 100
+--         then log1 ("aborting > 100: " ++ show' x) Empty
+--         else if even x
+--           then log1 ("even number: " ++ show' x) ok
+--           else Logger Nil ok
+--   )
+
+-- test xs = runStateT (filtering p (listh xs)) S.empty
+-- test2 xs = evalT (filtering p (listh xs)) S.empty
+--------------------------------------
+
 distinctG ::
   (Integral a, Show a) =>
   List a
   -> Logger Chars (Optional (List a))
-distinctG =
-  error "todo: Course.StateT#distinctG"
+-- before refactoring
+distinctG xs = runOptionalT $ evalT (filtering p xs) S.empty
+  where p x = StateT $ \s -> OptionalT (
+              let ok = Full (S.notMember x s, S.insert x s)
+              in  if x > 100 then log1 ("aborting > 100: " ++ show' x) Empty
+                  else if even x then log1 ("even number: " ++ show' x) ok
+                  else Logger Nil ok
+              )
+-- after refactoring
+-- distinctG xs = runOptionalT $ evalT (filtering p xs) S.empty
+--   where p x = StateT $ \s -> OptionalT (
+--               if x > 100
+--                 then log1 ("aborting > 100: " ++ show' x) Empty
+--                 else (if even x
+--                         then log1 ("even number: " ++ show' x)
+--                         else pure) $ Full (S.notMember x s, S.insert x s)
+--               )
