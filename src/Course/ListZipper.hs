@@ -236,6 +236,7 @@ hasRight = not . isEmpty . rights
 -- >>> findLeft (== 1) (zipper [1, 2, 1] 3 [4, 5])
 -- [2,1] >1< [3,4,5]
 --
+-- to contribute
 -- >>> findLeft (== 42) (zipper [1,2,3,42,5,6,7,8,9,10] 777 [11,12])
 -- [5,6,7,8,9,10] >42< [3,2,1,777,11,12]
 
@@ -263,6 +264,7 @@ findLeft p (ListZipper l x r) = case break p l of
 -- >>> findRight (== 1) (zipper [2, 3] 1 [1, 4, 5, 1])
 -- [1,2,3] >1< [4,5,1]
 --
+-- to contribute
 -- >>> findRight (== 42) (zipper [11,12] 777 [1,2,3,42,5,6,7,8,9,10])
 -- [3,2,1,777,11,12] >42< [5,6,7,8,9,10]
 
@@ -605,11 +607,13 @@ insertPushRight x (ListZipper ls y rs) = ListZipper ls x (y:.rs)
 -- [5,12] >8< [15,24,12]
 instance Applicative ListZipper where
 -- /Tip:/ Use @List#repeat@.
-  pure =
-    error "todo: Course.ListZipper pure#instance ListZipper"
+  pure a = ListZipper (repeat a) a (repeat a)
 -- /Tip:/ Use `zipWith`
-  (<*>) =
-    error "todo: Course.ListZipper (<*>)#instance ListZipper"
+  (ListZipper fl f fr) <*> (ListZipper dl d dr) =
+    ListZipper (zipWith ($) fl dl) (f d) (zipWith ($) fr dr)
+    -- ListZipper (zipWith g fl dl) (f d) (zipWith g fr dr)
+    -- where g x y = x y
+    -- where g = ($)
 
 -- | Implement the `Applicative` instance for `MaybeListZipper`.
 --
@@ -632,10 +636,11 @@ instance Applicative ListZipper where
 -- >>> IsNotZ <*> IsNotZ
 -- ><
 instance Applicative MaybeListZipper where
-  pure =
-    error "todo: Course.ListZipper pure#instance MaybeListZipper"
-  (<*>) =
-    error "todo: Course.ListZipper (<*>)#instance MaybeListZipper"
+  pure = IsZ . pure
+
+-- to contribute
+  IsZ x <*> IsZ y = IsZ (x <*> y)
+  _     <*> _     = IsNotZ
 
 -- | Implement the `Extend` instance for `ListZipper`.
 -- This implementation "visits" every possible zipper value derivable from a given zipper (i.e. all zippers to the left and right).
@@ -644,9 +649,33 @@ instance Applicative MaybeListZipper where
 --
 -- >>> id <<= (zipper [2,1] 3 [4,5])
 -- [[1] >2< [3,4,5],[] >1< [2,3,4,5]] >[2,1] >3< [4,5]< [[3,2,1] >4< [5],[4,3,2,1] >5< []]
+
+-- cjz :: ListZipper a -> ListZipper (ListZipper a)
+-- cjz a = ListZipper (f moveLeft a) a (f moveRight a)
+--         where f move = unfoldr $ ((\y -> (y,y)) <$>) . toOptional . move
+
+-- cjz a = ListZipper (f moveLeft a) a (f moveRight a)
+--         where f move = unfoldr (\x -> (\y -> (y,y))<$>(toOptional (move x)))
+-- cjz a = ListZipper (fl a) a (fr a)
+--         where fl = unfoldr (\x -> (\y -> (y,y))<$>(toOptional (moveLeft x)))
+--               fr = unfoldr (\x -> case moveRight x of
+--                 IsNotZ -> Empty
+--                 IsZ res -> Full (res, res))
+-- cjz a = ListZipper (fl a) a (fr a)
+--         where fl z = unfoldr (\x -> case moveLeft x of
+--                 IsNotZ -> Empty
+--                 IsZ res -> Full (res, res)) z
+--               fr z = unfoldr (\x -> case moveRight x of
+--                 IsNotZ -> Empty
+--                 IsZ res -> Full (res, res)) z
+
 instance Extend ListZipper where
-  (<<=) =
-    error "todo: Course.ListZipper (<<=)#instance ListZipper"
+  -- to contribute
+  f <<= a = f <$> ListZipper (g moveLeft a) a (g moveRight a)
+    where g move = unfoldr $ ((\x -> (x,x)) <$>) . toOptional . move
+
+  -- f <<= a = ListZipper (g moveLeft a) (f a) (g moveRight a)
+  --   where g move = unfoldr $ ((\x -> (f x,x)) <$>) . toOptional . move
 
 -- | Implement the `Extend` instance for `MaybeListZipper`.
 -- This instance will use the `Extend` instance for `ListZipper`.
@@ -657,9 +686,17 @@ instance Extend ListZipper where
 --
 -- >>> id <<= (IsZ (zipper [2,1] 3 [4,5]))
 -- [[1] >2< [3,4,5],[] >1< [2,3,4,5]] >[2,1] >3< [4,5]< [[3,2,1] >4< [5],[4,3,2,1] >5< []]
+
+-- cjmz :: MaybeListZipper a -> MaybeListZipper (MaybeListZipper a)
+-- cjmz IsNotZ = IsNotZ
+-- cjmz (IsZ a) = IsZ $ ListZipper (f moveLeft a) (IsZ a) (f moveRight a)
+--         where f move = unfoldr $ ((\y -> (IsZ y,y)) <$>) . toOptional . move
+
 instance Extend MaybeListZipper where
-  (<<=) =
-    error "todo: Course.ListZipper (<<=)#instance MaybeListZipper"
+  _ <<= IsNotZ = IsNotZ
+  f <<= IsZ a  = IsZ (f . IsZ <<= a)
+
+  -- f <<= a = f <$> cjmz a
 
 -- | Implement the `Comonad` instance for `ListZipper`.
 -- This implementation returns the current focus of the zipper.
@@ -667,8 +704,8 @@ instance Extend MaybeListZipper where
 -- >>> copure (zipper [2,1] 3 [4,5])
 -- 3
 instance Comonad ListZipper where
-  copure =
-    error "todo: Course.ListZipper copure#instance ListZipper"
+  copure (ListZipper _ a _) = a
+    -- error "todo: Course.ListZipper copure#instance ListZipper"
 
 -- | Implement the `Traversable` instance for `ListZipper`.
 -- This implementation traverses a zipper while running some `Applicative` effect through the zipper.
@@ -679,9 +716,14 @@ instance Comonad ListZipper where
 --
 -- >>> traverse id (zipper [Full 1, Full 2, Full 3] (Full 4) [Empty, Full 6, Full 7])
 -- Empty
+
 instance Traversable ListZipper where
-  traverse =
-    error "todo: Course.ListZipper traverse#instance ListZipper"
+  -- to contribute
+  traverse f (ListZipper l a r) = lift3 ListZipper (traverse f l) (f a) (traverse f r)
+
+  -- double 'reverse'
+  -- traverse f (ListZipper l x r) =
+  --   (ListZipper . reverse) <$> traverse f (reverse l) <*> f x <*> traverse f r
 
 -- | Implement the `Traversable` instance for `MaybeListZipper`.
 --
@@ -692,9 +734,10 @@ instance Traversable ListZipper where
 --
 -- >>> traverse id (IsZ (zipper [Full 1, Full 2, Full 3] (Full 4) [Full 5, Full 6, Full 7]))
 -- Full [1,2,3] >4< [5,6,7]
+
 instance Traversable MaybeListZipper where
-  traverse =
-    error "todo: Course.ListZipper traverse#instance MaybeListZipper"
+  traverse f (IsZ z) = IsZ <$> traverse f z
+  traverse _ IsNotZ = pure IsNotZ
 
 -----------------------
 -- SUPPORT LIBRARIES --
