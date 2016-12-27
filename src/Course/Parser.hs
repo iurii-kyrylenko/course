@@ -64,30 +64,31 @@ data Parser a = P {
 }
 
 -- | Produces a parser that always fails with @UnexpectedChar@ using the given character.
-unexpectedCharParser ::
-  Char
-  -> Parser a
-unexpectedCharParser c =
-  P (\_ -> ErrorResult (UnexpectedChar c))
+unexpectedCharParser :: Char -> Parser a
+-- to contribute
+unexpectedCharParser = P . const . ErrorResult . UnexpectedChar
+-- unexpectedCharParser c =
+--   P (\_ -> ErrorResult (UnexpectedChar c))
 
 -- | Return a parser that always succeeds with the given value and consumes no input.
 --
 -- >>> parse (valueParser 3) "abc"
 -- Result >abc< 3
-valueParser ::
-  a
-  -> Parser a
-valueParser =
-  error "todo: Course.Parser#valueParser"
+
+-- to contribute
+valueParser :: a -> Parser a
+valueParser = P . flip Result
+-- valueParser x = P $ \i -> Result i x
 
 -- | Return a parser that always fails with the given error.
 --
 -- >>> isErrorResult (parse failed "abc")
 -- True
-failed ::
-  Parser a
-failed =
-  error "todo: Course.Parser#failed"
+
+-- to contribute
+failed :: Parser a
+failed = P $ const (ErrorResult Failed)
+-- failed = P (\i -> ErrorResult Failed)
 
 -- | Return a parser that succeeds with a character off the input or fails with an error if the input is empty.
 --
@@ -96,10 +97,10 @@ failed =
 --
 -- >>> isErrorResult (parse character "")
 -- True
-character ::
-  Parser Char
-character =
-  error "todo: Course.Parser#character"
+character :: Parser Char
+character = P $ \i -> case i of
+  Nil    -> ErrorResult UnexpectedEof
+  x :. xs -> Result xs x
 
 -- | Return a parser that maps any succeeding result with the given function.
 --
@@ -108,12 +109,10 @@ character =
 --
 -- >>> parse (mapParser (+10) (valueParser 7)) ""
 -- Result >< 17
-mapParser ::
-  (a -> b)
-  -> Parser a
-  -> Parser b
-mapParser =
-  error "todo: Course.Parser#mapParser"
+mapParser :: (a -> b) -> Parser a -> Parser b
+mapParser f (P p) = P $ \i -> case p i of
+  ErrorResult e -> ErrorResult e
+  Result j a -> Result j (f a)
 
 -- | This is @mapParser@ with the arguments flipped.
 -- It might be more helpful to use this function if you prefer this argument order.
