@@ -750,3 +750,23 @@ instance Show a => Show (ListZipper a) where
 instance Show a => Show (MaybeListZipper a) where
   show (IsZ z) = show z
   show IsNotZ = "><"
+
+-----------------------
+-- CHAIN APPLICATION --
+-----------------------
+
+(-:):: MaybeListZipper a -> (ListZipper a -> ListZipper a) -> MaybeListZipper a
+(-:) = flip asZipper
+
+(>:) :: MaybeListZipper a -> (ListZipper a -> MaybeListZipper a) -> MaybeListZipper a
+(>:) = flip asMaybeZipper
+
+testZipperChain :: MaybeListZipper Int
+testZipperChain = IsZ (zipper [1..9] 10 [11..19])
+     -: withFocus (+42)
+     >: moveLeftN 3
+     -: withFocus (+42)
+     >: moveLeft
+     >: deletePullLeft
+     -: insertPushRight 42
+     >: nth 12
