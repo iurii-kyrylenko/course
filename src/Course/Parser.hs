@@ -148,8 +148,9 @@ bindParser ::
   (a -> Parser b)
   -> Parser a
   -> Parser b
-bindParser =
-  error "todo: Course.Parser#bindParser"
+bindParser f (P p) = P $ \i -> case p i of
+  ErrorResult e -> ErrorResult e
+  Result j a -> parse (f a) j
 
 -- | This is @bindParser@ with the arguments flipped.
 -- It might be more helpful to use this function if you prefer this argument order.
@@ -178,8 +179,8 @@ flbindParser =
   Parser a
   -> Parser b
   -> Parser b
-(>>>) =
-  error "todo: Course.Parser#(>>>)"
+a >>> b = bindParser (const b) a
+-- a >>> b = flbindParser a (const b)
 
 -- | Return a parser that tries the first parser for a successful value.
 --
@@ -202,8 +203,13 @@ flbindParser =
   Parser a
   -> Parser a
   -> Parser a
-(|||) =
-  error "todo: Course.Parser#(|||)"
+P p ||| P q = P $ \i ->
+  let res = p i
+  in  if isErrorResult res then q i
+      else res
+-- P p ||| P q = P $ \i -> case p i of
+--   Result j a -> Result j a
+--   ErrorResult _ -> q i
 
 infixl 3 |||
 
@@ -228,11 +234,9 @@ infixl 3 |||
 --
 -- >>> parse (list (character *> valueParser 'v')) ""
 -- Result >< ""
-list ::
-  Parser a
-  -> Parser (List a)
-list =
-  error "todo: Course.Parser#list"
+list :: Parser a -> Parser (List a)
+list = (||| valueParser Nil) . list1
+-- list p = list1 p ||| valueParser Nil
 
 -- | Return a parser that produces at least one value from the given parser then
 -- continues producing a list of values from the given parser (to ultimately produce a non-empty list).
@@ -247,11 +251,24 @@ list =
 --
 -- >>> isErrorResult (parse (list1 (character *> valueParser 'v')) "")
 -- True
-list1 ::
-  Parser a
-  -> Parser (List a)
-list1 =
-  error "todo: Course.Parser#list1"
+list1 :: Parser a -> Parser (List a)
+list1 p = bindParser (\c ->
+  bindParser (\r ->
+    valueParser (c :. r)
+    ) (list p)
+  ) p
+
+-- My solution:
+-- list1 p = bindParser (\c ->
+--   P (\i ->
+--     let Result j r = parse (list p) i
+--     in  Result j (c :. r)
+--     )
+--   ) p
+
+-- playing ...
+-- list1 p = bindParser (\c -> valueParser (c:.Nil)) p
+-- list1 p = bindParser (\c -> P (\i -> Result i (c:.Nil)) ) p
 
 -- | Return a parser that produces a character but fails if
 --
@@ -266,11 +283,10 @@ list1 =
 --
 -- >>> isErrorResult (parse (satisfy isUpper) "abc")
 -- True
-satisfy ::
-  (Char -> Bool)
-  -> Parser Char
-satisfy =
-  error "todo: Course.Parser#satisfy"
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy p = bindParser
+              (\c -> if p c then valueParser c else unexpectedCharParser c)
+              character
 
 -- | Return a parser that produces the given character but fails if
 --
@@ -279,10 +295,10 @@ satisfy =
 --   * The produced character is not equal to the given character.
 --
 -- /Tip:/ Use the @satisfy@ function.
-is ::
-  Char -> Parser Char
-is =
-  error "todo: Course.Parser#is"
+
+-- to contribute
+is :: Char -> Parser Char
+is = satisfy . (==)
 
 -- | Return a parser that produces a character between '0' and '9' but fails if
 --
@@ -291,10 +307,8 @@ is =
 --   * The produced character is not a digit.
 --
 -- /Tip:/ Use the @satisfy@ and @Data.Char#isDigit@ functions.
-digit ::
-  Parser Char
-digit =
-  error "todo: Course.Parser#digit"
+digit :: Parser Char
+digit = satisfy isDigit
 
 -- | Return a parser that produces zero or a positive integer but fails if
 --
