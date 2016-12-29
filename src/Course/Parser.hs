@@ -329,10 +329,17 @@ digit = satisfy isDigit
 --
 -- >>> isErrorResult (parse natural "")
 -- True
-natural ::
-  Parser Int
-natural =
-  error "todo: Course.Parser#natural"
+natural :: Parser Int
+natural = bindParser (\ds ->
+  case read ds of
+    Full n -> valueParser n
+    Empty  -> failed
+  ) (list1 digit)
+
+-- natural = bindParser (\ds ->
+--   let Full n = read ds
+--   in  valueParser n
+--   ) (list1 digit)
 
 --
 -- | Return a parser that produces a space character but fails if
@@ -342,10 +349,8 @@ natural =
 --   * The produced character is not a space.
 --
 -- /Tip:/ Use the @satisfy@ and @Data.Char#isSpace@ functions.
-space ::
-  Parser Char
-space =
-  error "todo: Course.Parser#space"
+space :: Parser Char
+space = satisfy isSpace
 
 -- | Return a parser that produces one or more space characters
 -- (consuming until the first non-space) but fails if
@@ -355,10 +360,8 @@ space =
 --   * The first produced character is not a space.
 --
 -- /Tip:/ Use the @list1@ and @space@ functions.
-spaces1 ::
-  Parser Chars
-spaces1 =
-  error "todo: Course.Parser#spaces1"
+spaces1 :: Parser Chars
+spaces1 = list1 space
 
 -- | Return a parser that produces a lower-case character but fails if
 --
@@ -367,10 +370,8 @@ spaces1 =
 --   * The produced character is not lower-case.
 --
 -- /Tip:/ Use the @satisfy@ and @Data.Char#isLower@ functions.
-lower ::
-  Parser Char
-lower =
-  error "todo: Course.Parser#lower"
+lower :: Parser Char
+lower = satisfy isLower
 
 -- | Return a parser that produces an upper-case character but fails if
 --
@@ -379,10 +380,8 @@ lower =
 --   * The produced character is not upper-case.
 --
 -- /Tip:/ Use the @satisfy@ and @Data.Char#isUpper@ functions.
-upper ::
-  Parser Char
-upper =
-  error "todo: Course.Parser#upper"
+upper :: Parser Char
+upper = satisfy isUpper
 
 -- | Return a parser that produces an alpha character but fails if
 --
@@ -391,10 +390,8 @@ upper =
 --   * The produced character is not alpha.
 --
 -- /Tip:/ Use the @satisfy@ and @Data.Char#isAlpha@ functions.
-alpha ::
-  Parser Char
-alpha =
-  error "todo: Course.Parser#alpha"
+alpha :: Parser Char
+alpha = satisfy isAlpha
 
 -- | Return a parser that sequences the given list of parsers by producing all their results
 -- but fails on the first failing parser of the list.
@@ -407,11 +404,25 @@ alpha =
 --
 -- >>> isErrorResult (parse (sequenceParser (character :. is 'x' :. upper :. Nil)) "abCdef")
 -- True
-sequenceParser ::
-  List (Parser a)
-  -> Parser (List a)
-sequenceParser =
-  error "todo: Course.Parser#sequenceParser"
+
+sequenceParser :: List (Parser a) -> Parser (List a)
+sequenceParser = foldRight (\p a ->
+  bindParser (\c ->
+    bindParser (\r ->
+      valueParser (c :. r)
+      ) a
+    ) p
+  ) (valueParser Nil)
+
+-- implemented recursively, like list1 (see below)
+--
+-- sequenceParser :: List (Parser a) -> Parser (List a)
+-- sequenceParser Nil = valueParser Nil
+-- sequenceParser (p :. ps) = bindParser (\c ->
+--   bindParser (\r ->
+--     valueParser (c :. r)
+--     ) (sequenceParser ps)
+--   ) p
 
 -- | Return a parser that produces the given number of values off the given parser.
 -- This parser fails if the given parser fails in the attempt to produce the given number of values.
@@ -423,18 +434,19 @@ sequenceParser =
 --
 -- >>> isErrorResult (parse (thisMany 4 upper) "ABcDef")
 -- True
-thisMany ::
-  Int
-  -> Parser a
-  -> Parser (List a)
-thisMany =
-  error "todo: Course.Parser#thisMany"
+
+-- to contribute  s
+thisMany :: Int -> Parser a -> Parser (List a)
+thisMany n = sequenceParser . replicate n
+-- thisMany = (sequenceParser .) . replicate
+-- thisMany n p = sequenceParser $ replicate n p
 
 -- | Write a parser for Person.age.
 --
 -- /Age: positive integer/
 --
--- /Tip:/ Equivalent to @natural@.
+-- /Tip:/ Equivalent to @natural@
+-- Iurii: What about 0?
 --
 -- >>> parse ageParser "120"
 -- Result >< 120
@@ -444,10 +456,10 @@ thisMany =
 --
 -- >>> isErrorResult (parse ageParser "-120")
 -- True
-ageParser ::
-  Parser Int
-ageParser =
-  error "todo: Course.Parser#ageParser"
+
+-- to contribute
+ageParser :: Parser Int
+ageParser = bindParser (\c -> if c == 0 then failed else valueParser c) natural
 
 -- | Write a parser for Person.firstName.
 -- /First Name: non-empty string that starts with a capital letter and is followed by zero or more lower-case letters/
@@ -459,10 +471,19 @@ ageParser =
 --
 -- >>> isErrorResult (parse firstNameParser "abc")
 -- True
-firstNameParser ::
-  Parser Chars
-firstNameParser =
-  error "todo: Course.Parser#firstNameParser"
+
+-- firstNameParser :: Parser Chars
+-- firstNameParser = bindParser (\c ->
+--   bindParser (\r ->
+--     valueParser (c:.r)
+--     ) (list lower)
+--   ) upper
+
+-- to contribute
+firstNameParser :: Parser Chars
+firstNameParser = bindParser
+                  (valueParser . flatten)
+                  $ sequenceParser (thisMany 1 upper :. list lower :. Nil)
 
 -- | Write a parser for Person.surname.
 --
@@ -478,10 +499,21 @@ firstNameParser =
 --
 -- >>> isErrorResult (parse surnameParser "abc")
 -- True
-surnameParser ::
-  Parser Chars
-surnameParser =
-  error "todo: Course.Parser#surnameParser"
+
+-- surnameParser :: Parser Chars
+-- surnameParser = flbindParser upper (\a ->
+--   flbindParser (thisMany 5 lower) (\b ->
+--     flbindParser (list lower) (\c ->
+--       valueParser (a:.b++c))))
+
+-- to contribute
+surnameParser :: Parser Chars
+surnameParser = bindParser (valueParser . flatten) $ sequenceParser
+                (  thisMany 1 upper
+                :. thisMany 5 lower
+                :. list lower
+                :. Nil
+                )
 
 -- | Write a parser for Person.smoker.
 --
@@ -497,10 +529,8 @@ surnameParser =
 --
 -- >>> isErrorResult (parse smokerParser "abc")
 -- True
-smokerParser ::
-  Parser Char
-smokerParser =
-  error "todo: Course.Parser#smokerParser"
+smokerParser :: Parser Char
+smokerParser = is 'y' ||| is 'n'
 
 -- | Write part of a parser for Person#phoneBody.
 -- This parser will only produce a string of digits, dots or hyphens.
@@ -519,10 +549,8 @@ smokerParser =
 --
 -- >>> parse phoneBodyParser "a123-456"
 -- Result >a123-456< ""
-phoneBodyParser ::
-  Parser Chars
-phoneBodyParser =
-  error "todo: Course.Parser#phoneBodyParser"
+phoneBodyParser ::  Parser Chars
+phoneBodyParser = list $ digit ||| is '.' ||| is '-'
 
 -- | Write a parser for Person.phone.
 --
@@ -541,10 +569,21 @@ phoneBodyParser =
 --
 -- >>> isErrorResult (parse phoneParser "a123-456")
 -- True
-phoneParser ::
-  Parser Chars
-phoneParser =
-  error "todo: Course.Parser#phoneParser"
+
+-- phoneParser :: Parser Chars
+-- phoneParser = flbindParser digit (\a ->
+--   flbindParser phoneBodyParser (\b ->
+--     flbindParser (is '#') (\_ ->
+--       valueParser (a:.b))))
+
+-- to contribute
+phoneParser :: Parser Chars
+phoneParser = bindParser (valueParser . flatten) $ sequenceParser
+                (  thisMany 1 digit
+                :. phoneBodyParser
+                :. is '#' >>> valueParser Nil -- swallow result
+                :. Nil
+                )
 
 -- | Write a parser for Person.
 --
@@ -590,10 +629,29 @@ phoneParser =
 --
 -- >>> parse personParser "123 Fred Clarkson y 123-456.789# rest"
 -- Result > rest< Person {age = 123, firstName = "Fred", surname = "Clarkson", smoker = 'y', phone = "123-456.789"}
-personParser ::
-  Parser Person
-personParser =
-  error "todo: Course.Parser#personParser"
+personParser :: Parser Person
+personParser = flbindParser ageParser (\pAge ->
+  spaces1 >>>
+  flbindParser firstNameParser (\pFirstName ->
+  spaces1 >>>
+  flbindParser surnameParser (\pSurname ->
+  spaces1 >>>
+  flbindParser smokerParser (\pSmoker ->
+  spaces1 >>>
+  flbindParser phoneParser (\pPhone ->
+  valueParser (Person pAge pFirstName pSurname pSmoker pPhone))))))
+
+-- personParser :: Parser Person
+-- personParser = flbindParser ageParser (\pAge ->
+--   flbindParser spaces1 (\_ ->
+--   flbindParser firstNameParser (\pFirstName ->
+--   flbindParser spaces1 (\_ ->
+--   flbindParser surnameParser (\pSurname ->
+--   flbindParser spaces1 (\_ ->
+--   flbindParser smokerParser (\pSmoker ->
+--   flbindParser spaces1 (\_ ->
+--   flbindParser phoneParser (\pPhone ->
+--   valueParser (Person pAge pFirstName pSurname pSmoker pPhone))))))))))
 
 -- Make sure all the tests pass!
 
