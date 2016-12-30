@@ -658,28 +658,42 @@ personParser = flbindParser ageParser (\pAge ->
 
 -- | Write a Functor instance for a @Parser@.
 -- /Tip:/ Use @bindParser@ and @valueParser@.
+
+-- >>> parse ((+1) <$> natural) "42"
+-- Result >< 43
+
 instance Functor Parser where
   (<$>) ::
     (a -> b)
     -> Parser a
     -> Parser b
-  (<$>) =
-     error "todo: Course.Parser (<$>)#instance Parser"
+  (<$>) = bindParser . (valueParser .)
+  -- (<$>) f = bindParser $ valueParser . f
+  -- f <$> p = bindParser (\c -> valueParser (f c)) p
 
 -- | Write an Applicative functor instance for a @Parser@.
 -- /Tip:/ Use @bindParser@ and @valueParser@.
+-- >>> parse (P (\i -> Result i (+1)) <*> natural) "42qw"
+-- Result >qw< 43
+--
 instance Applicative Parser where
   pure ::
     a
     -> Parser a
-  pure =
-    error "todo: Course.Parser pure#instance Parser"
+  pure = valueParser
   (<*>) ::
     Parser (a -> b)
     -> Parser a
     -> Parser b
-  (<*>) =
-    error "todo: Course.Parser (<*>)#instance Parser"
+  (<*>) = flip (bindParser . flip (<$>))
+  -- (<*>) fp dp = bindParser (<$> dp) fp
+  -- fp <*> dp = bindParser (<$> dp) fp
+  -- fp <*> dp = bindParser (\f -> f <$> dp) fp
+  -- fp <*> dp = bindParser (\f ->
+  --   bindParser (\d ->
+  --     valueParser (f d)
+  --     ) dp
+  --   ) fp
 
 -- | Write a Monad instance for a @Parser@.
 instance Monad Parser where
@@ -687,5 +701,5 @@ instance Monad Parser where
     (a -> Parser b)
     -> Parser a
     -> Parser b
-  (=<<) =
-    error "todo: Course.Parser (=<<)#instance Parser"
+  (=<<) = bindParser
+  -- f =<< m = bindParser (\x -> f x) m
