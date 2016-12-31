@@ -441,7 +441,7 @@ satisfyAny ps = satisfy $ or . sequence ps
 --
 -- Iurii (to contribute)
 -- >>> parse (betweenSepbyComma '[' ']' lower) "[    a, b , c , d ]  1234"
--- Result >< "abcd"
+-- Result >1234< "abcd"
 -- True
 betweenSepbyComma ::
   Char
