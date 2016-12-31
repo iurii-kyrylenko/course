@@ -328,8 +328,10 @@ sepby1 ::
   Parser a
   -> Parser s
   -> Parser (List a)
-sepby1 =
-  error "todo: Course.MoreParser#sepby1"
+sepby1 p s = do
+  start <- p
+  rest  <- list (s >>> p) {- as an option could use `right apply (*>) instead of (>>>)`-}
+  return (start :. rest)
 
 -- | Write a function that produces a list of values coming off the given parser,
 -- separated by the second given parser.
@@ -351,8 +353,7 @@ sepby ::
   Parser a
   -> Parser s
   -> Parser (List a)
-sepby =
-  error "todo: Course.MoreParser#sepby"
+sepby p s = sepby1 p s ||| return Nil
 
 -- | Write a parser that asserts that there is no remaining input.
 --
@@ -361,10 +362,11 @@ sepby =
 --
 -- >>> isErrorResult (parse eof "abc")
 -- True
-eof ::
-  Parser ()
-eof =
-  error "todo: Course.MoreParser#eof"
+eof :: Parser ()
+eof = P $ \i -> case i of
+  Nil -> Result i ()
+  _ ->   ErrorResult (ExpectedEof i)
+-- eof = P (\i -> if isEmpty i then Result i () else ErrorResult Failed)
 
 -- | Write a parser that produces a character that satisfies all of the given predicates.
 --
@@ -384,11 +386,18 @@ eof =
 --
 -- >>> isErrorResult (parse (satisfyAll (isUpper :. (/= 'X') :. Nil)) "abc")
 -- True
-satisfyAll ::
-  List (Char -> Bool)
-  -> Parser Char
-satisfyAll =
-  error "todo: Course.MoreParser#satisfyAll"
+satisfyAll :: List (Char -> Bool) -> Parser Char
+-- after being tipped (guessed by type signatures only):
+satisfyAll ps = satisfy $ and . sequence ps
+-- ps = (isUpper :. (/= 'X') :. Nil)
+-- :t ps => List (Char -> Bool)
+-- :t sequence ps => Char -> List Bool
+-- :t and . sequence ps => Char -> Bool
+-- :t satisfy $ and . sequence ps => Parser Char
+
+-- solution w/o tip:
+-- satisfyAll ps = satisfy (\c -> all ($ c) ps)
+-- satisfyAll ps = satisfy (\c -> all (\p -> p c) ps)
 
 -- | Write a parser that produces a character that satisfies any of the given predicates.
 --
@@ -405,11 +414,9 @@ satisfyAll =
 --
 -- >>> isErrorResult (parse (satisfyAny (isLower :. (/= 'X') :. Nil)) "")
 -- True
-satisfyAny ::
-  List (Char -> Bool)
-  -> Parser Char
-satisfyAny =
-  error "todo: Course.MoreParser#satisfyAny"
+satisfyAny :: List (Char -> Bool) -> Parser Char
+satisfyAny ps = satisfy $ or . sequence ps
+-- satisfyAny ps = satisfy (\c -> any ($ c) ps)
 
 -- | Write a parser that parses between the two given characters, separated by a comma character ','.
 --
@@ -431,11 +438,14 @@ satisfyAny =
 -- True
 --
 -- >>> isErrorResult (parse (betweenSepbyComma '[' ']' lower) "a]")
+--
+-- Iurii (to contribute)
+-- >>> parse (betweenSepbyComma '[' ']' lower) "[    a, b , c , d ]  1234"
+-- Result >< "abcd"
 -- True
 betweenSepbyComma ::
   Char
   -> Char
   -> Parser a
   -> Parser (List a)
-betweenSepbyComma =
-  error "todo: Course.MoreParser#betweenSepbyComma"
+betweenSepbyComma b e p = betweenCharTok b e (sepby (tok p) commaTok)
