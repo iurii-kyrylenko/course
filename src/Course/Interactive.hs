@@ -21,6 +21,9 @@ vooid =
   (<$>) (const ())
 
 -- | A version of @bind@ that ignores the result of the effect.
+
+-- Full 42 >- Full 43 ==> Full 43
+-- Full 42 >- Empty ==> Empty
 (>-) ::
   Monad m =>
   m a
@@ -30,6 +33,19 @@ vooid =
   (>>=) a . const
 
 -- | Runs an action until a result of that action satisfies a given predicate.
+
+-- untilM (\s -> return $ s == "") getLine
+
+-- untilM' p a = do
+--   x <- a
+--   b <- p x
+--   if b then return x else untilM' p a
+
+-- untilM'' p a =
+--   a >>= \x ->
+--   p x >>= \b ->
+--   if b then return x else untilM'' p a
+
 untilM ::
   Monad m =>
   (a -> m Bool) -- ^ The predicate to satisfy to stop running the action.
@@ -61,6 +77,14 @@ echo =
            putStrLn "" >-
            putStrLn (c :. Nil) >-
            pure c))
+          -- (do
+          --   putStr "Enter a character:"
+          --   c <- getChar
+          --   putStrLn ""
+          --   putStrLn (c :. Nil)
+          --   return c
+          --   )
+          -- )
 
 data Op =
   Op Char Chars (IO ()) -- keyboard entry, description, program
@@ -80,10 +104,16 @@ data Op =
 -- /Tip:/ @putStr :: String -> IO ()@ -- Prints a string to standard output.
 --
 -- /Tip:/ @putStrLn :: String -> IO ()@ -- Prints a string and then a new line to standard output.
+
 convertInteractive ::
   IO ()
-convertInteractive =
-  error "todo: Course.Interactive#convertInteractive"
+convertInteractive = do
+  putStr "Input a string: "
+  s <- getLine
+  putStr "Result: "
+  let r = toUpper <$> s
+  putStrLn r
+  putStrLn ""
 
 -- |
 --
@@ -110,8 +140,15 @@ convertInteractive =
 -- /Tip:/ @putStrLn :: String -> IO ()@ -- Prints a string and then a new line to standard output.
 reverseInteractive ::
   IO ()
-reverseInteractive =
-  error "todo: Course.Interactive#reverseInteractive"
+reverseInteractive = do
+  putStr "Enter a file name to reverse: "
+  input <- getLine
+  putStr "Enter a file name to write to: "
+  output <- getLine
+  s <- readFile input
+  writeFile output (reverse s)
+  putStrLn "Done!"
+  putStrLn ""
 
 -- |
 --
@@ -136,8 +173,18 @@ reverseInteractive =
 -- /Tip:/ @putStrLn :: String -> IO ()@ -- Prints a string and then a new line to standard output.
 encodeInteractive ::
   IO ()
-encodeInteractive =
-  error "todo: Course.Interactive#encodeInteractive"
+encodeInteractive = do
+  putStr "Enter URL to encode: "
+  s <- getLine
+  putStr "Encoded URL: "
+  let encodeChar = (\c -> case c of
+        ' '  -> "%20"
+        '\t' -> "%09"
+        '"'  -> "%22"
+        _    -> c :. Nil)
+  -- putStrLn $ flatMap encodeChar s
+  putStrLn $ s >>= encodeChar
+  putStrLn ""
 
 interactive ::
   IO ()
