@@ -235,6 +235,7 @@ jsonObject = betweenSepbyComma '{' '}' pair where
     charTok ':'
     value <- jsonValue
     return (key, value)
+  -- pair = lift2 (,) jsonString (charTok ':' *> jsonValue)
 
 -- | Parse a JSON value.
 --
@@ -250,20 +251,24 @@ jsonObject = betweenSepbyComma '{' '}' pair where
 -- Result >< [("key1",JsonTrue),("key2",JsonArray [JsonRational False (7 % 1),JsonFalse]),("key3",JsonObject [("key4",JsonNull)])]
 jsonValue ::
   Parser JsonValue
-jsonValue = do
-      const JsonNull    <$> jsonNull
-  ||| const JsonTrue    <$> jsonTrue
-  ||| const JsonFalse   <$> jsonFalse
-  ||| JsonString        <$> jsonString
-  ||| JsonRational True <$> jsonNumber -- todo: evaluete Bool!
-  ||| JsonArray         <$> jsonArray
-  ||| JsonObject        <$> jsonObject
+jsonValue =
+  spaces >>>
+  (   JsonNull           <$  jsonNull
+  ||| JsonTrue           <$  jsonTrue
+  ||| JsonFalse          <$  jsonFalse
+  ||| JsonString         <$> jsonString
+  ||| JsonRational False <$> jsonNumber
+  ||| JsonArray          <$> jsonArray
+  ||| JsonObject         <$> jsonObject
+  )
 
 -- | Read a file into a JSON value.
 --
 -- /Tip:/ Use @System.IO#readFile@ and `jsonValue`.
+-- readJsonValue "/Users/iurii_kyrylenko/Projects/hobbies-import/books.json"
 readJsonValue ::
   Filename
   -> IO (ParseResult JsonValue)
-readJsonValue =
-  error "todo: Course.JsonParser#readJsonValue"
+readJsonValue path = do
+  content <- readFile path
+  return $ parse jsonValue content
