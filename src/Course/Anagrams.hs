@@ -67,7 +67,9 @@ equalIgnoringCase ::
   Chars
   -> Chars
   -> Bool
-equalIgnoringCase = (==) `on` (toLower <$>)
+equalIgnoringCase = (==) `on` map toLower
+
+-- equalIgnoringCase = (==) `on` (toLower <$>)
 
 -- (\xs ys -> (toLower <$>) xs == (toLower <$>) ys) ≅ (==) `on` (toLower <$>)
 
