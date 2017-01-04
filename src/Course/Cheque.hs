@@ -187,7 +187,7 @@ data Digit =
   | Seven
   | Eight
   | Nine
-  deriving (Eq, Enum, Bounded)
+  deriving (Eq, Enum, Bounded, Show)
 
 showDigit ::
   Digit
@@ -213,12 +213,53 @@ showDigit Eight =
 showDigit Nine =
   "nine"
 
+showTwoDigits :: Digit -> Digit -> Chars
+showTwoDigits d1 d2 =
+  case d1 of
+    One -> (headOr "" . (flip drop) teen . fromEnum) d2
+    _   -> (headOr "" . (flip drop) decs . (-2+) . fromEnum) d1 ++ d2'
+  where d2'  = if d2 == Zero then "" else " " ++ showDigit d2
+        teen = listh [
+              "ten"
+            , "eleven"
+            , "twelve"
+            , "thirteen"
+            , "forteen"
+            , "fifteen"
+            , "sixteen"
+            , "seventeen"
+            , "eighteen"
+            , "nineteen"
+            ]
+        decs = listh [
+              "twenty"
+            , "thirty"
+            , "forty"
+            , "fifty"
+            , "sixty"
+            , "seventy"
+            , "eigthy"
+            , "ninety"
+            ]
+
+showThreeDigits :: Digit -> Digit -> Digit -> Chars
+showThreeDigits d1 d2 d3 =
+     showDigit d1
+  ++ " hundred"
+  ++ if (d2 == Zero && d3 == Zero) then "" else " and "
+  ++ if d2 == Zero then showDigit d3 else showTwoDigits d2 d3
+
 -- A data type representing one, two or three digits, which may be useful for grouping.
 data Digit3 =
   D1 Digit
   | D2 Digit Digit
   | D3 Digit Digit Digit
-  deriving Eq
+  deriving (Eq, Show)
+
+showDigit3 :: Digit3 -> Chars
+showDigit3 (D1 d)        = showDigit d
+showDigit3 (D2 d1 d2)    = showTwoDigits d1 d2
+showDigit3 (D3 d1 d2 d3) = showThreeDigits d1 d2 d3
 
 -- Possibly convert a character to a digit.
 fromChar ::
@@ -320,6 +361,31 @@ fromChar _ =
 --
 -- >>> dollars "456789123456789012345678901234567890123456789012345678901234567890.12"
 -- "four hundred and fifty-six vigintillion seven hundred and eighty-nine novemdecillion one hundred and twenty-three octodecillion four hundred and fifty-six septendecillion seven hundred and eighty-nine sexdecillion twelve quindecillion three hundred and forty-five quattuordecillion six hundred and seventy-eight tredecillion nine hundred and one duodecillion two hundred and thirty-four undecillion five hundred and sixty-seven decillion eight hundred and ninety nonillion one hundred and twenty-three octillion four hundred and fifty-six septillion seven hundred and eighty-nine sextillion twelve quintillion three hundred and forty-five quadrillion six hundred and seventy-eight trillion nine hundred and one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety dollars and twelve cents"
+
+
+t1 :: Chars -> (List Digit3, Digit3)
+t1 xs =
+  let filterDigits = map (\(Full x) -> x) . filter (/= Empty) . map fromChar
+      (ds, cs)     = break (== '.') xs
+      ds'          = (t2' . t2 . reverse . dropWhile (== Zero) . filterDigits) ds
+      cs'          = (t3 . filterDigits) cs
+  in  (reverse ds', cs')
+
+t2 :: List Digit -> List Digit3
+t2 Nil                 = Nil
+t2 (x :. Nil)          = D1 x :. Nil
+t2 (x :. y :. Nil)     = D2 y x :. Nil
+t2 (x :. y :. z :. rs) = D3 z y x :. t2 rs
+
+t2' :: List Digit3 -> List Digit3
+t2' Nil = D1 Zero :. Nil
+t2' xs  = xs
+
+t3 :: List Digit -> Digit3
+t3 Nil           = D1 Zero
+t3 (x :. Nil)    = D2 x Zero
+t3 (x :. y :. _) = D2 x y
+
 dollars ::
   Chars
   -> Chars
