@@ -47,15 +47,4 @@ fastAnagrams ::
   -> IO (List Chars)
 fastAnagrams word =
   let lookup ws s = filter (\w -> S.member (map toLower w) s) ws
-  in  (<$>) (lookup (permutations word) . S.fromList . hlist . lines) . readFile
-
-newtype NoCaseString =
-  NoCaseString {
-    ncString :: Chars
-  }
-
-instance Eq NoCaseString where
-  (==) = (==) `on` map toLower . ncString
-
-instance Show NoCaseString where
-  show = show . ncString
+  in  (<$>) (lookup (permutations word) . S.fromList . hlist . lines . map toLower) . readFile
