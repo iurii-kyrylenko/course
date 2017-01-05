@@ -216,9 +216,10 @@ showDigit Nine =
 showTwoDigits :: Digit -> Digit -> Chars
 showTwoDigits d1 d2 =
   case d1 of
-    One -> (headOr "" . (flip drop) teen . fromEnum) d2
-    _   -> (headOr "" . (flip drop) decs . (-2+) . fromEnum) d1 ++ d2'
-  where d2'  = if d2 == Zero then "" else " " ++ showDigit d2
+    Zero -> showDigit d2
+    One  -> (headOr "" . (flip drop) teen . fromEnum) d2
+    _    -> (headOr "" . (flip drop) decs . (-2+) . fromEnum) d1 ++ d2'
+  where d2'  = if d2 == Zero then "" else "-" ++ showDigit d2
         teen = listh [
               "ten"
             , "eleven"
@@ -243,11 +244,10 @@ showTwoDigits d1 d2 =
             ]
 
 showThreeDigits :: Digit -> Digit -> Digit -> Chars
-showThreeDigits d1 d2 d3 =
-     showDigit d1
-  ++ " hundred"
-  ++ if (d2 == Zero && d3 == Zero) then "" else " and "
-  ++ if d2 == Zero then showDigit d3 else showTwoDigits d2 d3
+showThreeDigits Zero Zero Zero   = ""
+showThreeDigits Zero d2 d3       = showTwoDigits d2 d3
+showThreeDigits d1 Zero Zero     = showDigit d1 ++ " hundred"
+showThreeDigits d1 d2 d3         = showDigit d1 ++ " hundred and " ++ showTwoDigits d2 d3
 
 -- A data type representing one, two or three digits, which may be useful for grouping.
 data Digit3 =
@@ -260,6 +260,15 @@ showDigit3 :: Digit3 -> Chars
 showDigit3 (D1 d)        = showDigit d
 showDigit3 (D2 d1 d2)    = showTwoDigits d1 d2
 showDigit3 (D3 d1 d2 d3) = showThreeDigits d1 d2 d3
+
+showNumber :: List Digit3 -> Chars
+showNumber =
+    flatten
+  . reverse
+  . zipWith (\il d3 -> showDigit3 d3 ++ if il == "" then "" else " " ++ il ++ " ") illion
+
+addUnit :: Chars -> Chars -> Chars
+addUnit unit amount = amount ++ " " ++ unit ++ if amount == "one" then "" else "s" 
 
 -- Possibly convert a character to a digit.
 fromChar ::
@@ -362,32 +371,35 @@ fromChar _ =
 -- >>> dollars "456789123456789012345678901234567890123456789012345678901234567890.12"
 -- "four hundred and fifty-six vigintillion seven hundred and eighty-nine novemdecillion one hundred and twenty-three octodecillion four hundred and fifty-six septendecillion seven hundred and eighty-nine sexdecillion twelve quindecillion three hundred and forty-five quattuordecillion six hundred and seventy-eight tredecillion nine hundred and one duodecillion two hundred and thirty-four undecillion five hundred and sixty-seven decillion eight hundred and ninety nonillion one hundred and twenty-three octillion four hundred and fifty-six septillion seven hundred and eighty-nine sextillion twelve quintillion three hundred and forty-five quadrillion six hundred and seventy-eight trillion nine hundred and one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety dollars and twelve cents"
 
-
-t1 :: Chars -> (List Digit3, Digit3)
-t1 xs =
+parseAmount :: Chars -> (List Digit3, Digit3)
+parseAmount xs =
   let filterDigits = map (\(Full x) -> x) . filter (/= Empty) . map fromChar
       (ds, cs)     = break (== '.') xs
-      ds'          = (t2' . t2 . reverse . dropWhile (== Zero) . filterDigits) ds
-      cs'          = (t3 . filterDigits) cs
-  in  (reverse ds', cs')
+      ds'          = (groupInteger . reverse . dropWhile (== Zero) . filterDigits) ds
+      cs'          = (groupFractional . filterDigits) cs
+  in  (ds', cs')
 
-t2 :: List Digit -> List Digit3
-t2 Nil                 = Nil
-t2 (x :. Nil)          = D1 x :. Nil
-t2 (x :. y :. Nil)     = D2 y x :. Nil
-t2 (x :. y :. z :. rs) = D3 z y x :. t2 rs
+groupInteger :: List Digit -> List Digit3
+groupInteger =
+  let grInt :: List Digit -> List Digit3
+      grInt Nil                 = Nil
+      grInt (x :. Nil)          = D1 x :. Nil
+      grInt (x :. y :. Nil)     = D2 y x :. Nil
+      grInt (x :. y :. z :. rs) = D3 z y x :. grInt rs
+      -- to put zero into empty list
+      grHlp :: List Digit3 -> List Digit3
+      grHlp Nil = D1 Zero :. Nil
+      grHlp xs  = xs
+  in  grHlp . grInt
 
-t2' :: List Digit3 -> List Digit3
-t2' Nil = D1 Zero :. Nil
-t2' xs  = xs
+groupFractional :: List Digit -> Digit3
+groupFractional Nil           = D1 Zero
+groupFractional (x :. Nil)    = D2 x Zero
+groupFractional (x :. y :. _) = D2 x y
 
-t3 :: List Digit -> Digit3
-t3 Nil           = D1 Zero
-t3 (x :. Nil)    = D2 x Zero
-t3 (x :. y :. _) = D2 x y
-
-dollars ::
-  Chars
-  -> Chars
-dollars =
-  error "todo: Course.Cheque#dollars"
+dollars :: Chars -> Chars
+dollars i =
+  let (d, c) = parseAmount i
+  in   (addUnit "dollar" . showNumber) d
+       ++ " and " ++
+       (addUnit "cent" . showDigit3) c
